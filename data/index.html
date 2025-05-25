@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Matrix Control</title>
+  <style>
+    body{font-family:sans-serif;margin:2em}
+    label{display:block;margin-top:1em;font-weight:bold}
+    textarea,input{width:100%;padding:.5em;font-size:1em}
+    button{margin-top:1em;padding:.5em 1em;font-size:1em}
+    #editor{display:grid;grid-template-rows:repeat(8,20px);grid-auto-flow:column;gap:1px;margin-top:1em}
+    .cell{width:20px;height:20px;background:#222;cursor:pointer}
+    .cell.on{background:#f00}
+  </style>
+</head>
+<body>
+  <h1>LED Matrix Konfiguration</h1>
+  <form id="cfgForm">
+    <label>Freitext:
+      <textarea id="freetext" rows="2" placeholder="Dein Text…"></textarea>
+    </label>
+    <label>Muster (Pixel-Editor):</label>
+    <div id="editor"></div>
+    <button type="button" onclick="addColumn()">+ Spalte</button>
+    <h2>Instagram API</h2>
+    <label>Instagram User-ID:
+      <input id="igUserId" placeholder="17841400000000000" />
+    </label>
+    <label>Facebook App-ID:
+      <input id="appId" placeholder="1234567890" />
+    </label>
+    <label>Facebook App-Secret:
+      <input id="appSecret" placeholder="your_app_secret" />
+    </label>
+    <label>Long-Lived Token:
+      <input id="igToken" placeholder="EAAX…" />
+    </label>
+    <button type="button" onclick="save()">Speichern</button>
+  </form>
+
+  <script>
+    const editor = document.getElementById('editor');
+    let cols = 12;
+    function buildEditor(){
+      editor.innerHTML='';
+      editor.style.gridTemplateColumns=`repeat(${cols},20px)`;
+      for(let r=0;r<8;r++){
+        for(let c=0;c<cols;c++){
+          const cell=document.createElement('div');
+          cell.className='cell';
+          cell.dataset.row=r; cell.dataset.col=c;
+          cell.onclick=()=>cell.classList.toggle('on');
+          editor.append(cell);
+        }
+      }
+      // laden vorhandenes Pattern
+      fetch('/api/getConfig').then(r=>r.json()).then(cfg=>{
+        document.getElementById('freetext').value=cfg.text;
+        cols=cfg.patternCols||12;
+        buildEditor(); // rekursiv, dann füllen
+        for(let r=0;r<8;r++){
+          for(let c=0;c<cols;c++){
+            if(cfg.pattern2D[r][c])
+              editor.children[r*cols+c].classList.add('on');
+          }
+        }
+        document.getElementById('igUserId').value=cfg.igUserId;
+        document.getElementById('appId').value=cfg.appId;
+        document.getElementById('appSecret').value=cfg.appSecret;
+        document.getElementById('igToken').value=cfg.igToken;
+      });
+    }
+    function addColumn(){ cols++; buildEditor(); }
+    function save(){
+      // Pattern extrahieren
+      const pattern=[];
+      for(let r=0;r<8;r++){
+        const row=[];
+        for(let c=0;c<cols;c++){
+          row.push(editor.children[r*cols+c].classList.contains('on')?1:0);
+        }
+        pattern.push(row);
+      }
+      const cfg={
+        text: document.getElementById('freetext').value,
+        patternCols: cols,
+        pattern2D: pattern,
+        igUserId: document.getElementById('igUserId').value,
+        appId: document.getElementById('appId').value,
+        appSecret: document.getElementById('appSecret').value,
+        igToken: document.getElementById('igToken').value
+      };
+      fetch('/api/config',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Basic '+btoa('admin:secret')
+        },
+        body:JSON.stringify(cfg)
+      }).then(r=>r.text()).then(alert);
+    }
+    buildEditor();
+  </script>
+</body>
+</html>
